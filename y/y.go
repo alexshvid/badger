@@ -29,7 +29,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 // ErrEOF indicates an end of file when trying to read from a memory mapped file
@@ -69,13 +69,32 @@ func OpenExistingFile(filename string, flags uint32) (*os.File, error) {
 	return os.OpenFile(filename, openFlags, 0)
 }
 
+func openFile(filename string, flag int) (*os.File, error) {
+
+	_, err := os.Stat(filename)
+	exist := err == nil
+
+	file, err := os.OpenFile(filename, flag, 0660)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exist {
+		err = os.Chmod(filename, 0660)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return file, nil
+}
+
 // CreateSyncedFile creates a new file (using O_EXCL), errors if it already existed.
 func CreateSyncedFile(filename string, sync bool) (*os.File, error) {
 	flags := os.O_RDWR | os.O_CREATE | os.O_EXCL
 	if sync {
 		flags |= datasyncFileFlag
 	}
-	return os.OpenFile(filename, flags, 0600)
+	return openFile(filename, flags)
 }
 
 // OpenSyncedFile creates the file if one doesn't exist.
@@ -84,7 +103,7 @@ func OpenSyncedFile(filename string, sync bool) (*os.File, error) {
 	if sync {
 		flags |= datasyncFileFlag
 	}
-	return os.OpenFile(filename, flags, 0600)
+	return openFile(filename, flags)
 }
 
 // OpenTruncFile opens the file with O_RDWR | O_CREATE | O_TRUNC
@@ -93,7 +112,7 @@ func OpenTruncFile(filename string, sync bool) (*os.File, error) {
 	if sync {
 		flags |= datasyncFileFlag
 	}
-	return os.OpenFile(filename, flags, 0600)
+	return openFile(filename, flags)
 }
 
 // SafeCopy does append(a[:0], src...).
